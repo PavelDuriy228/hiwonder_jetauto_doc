@@ -1,0 +1,16 @@
+<?xml version="1.0"?>
+<launch>
+    <!-- Глубинная камера Astra -->
+    <include file="$(find jetauto_peripherals)/launch/astrapro.launch"/>
+
+    <!-- Контроллер колёс -->
+    <include file="$(find jetauto_controller)/launch/jetauto_controller.launch"/>
+
+    <!-- Детектор цвета (работает с RGB-потоком камеры) -->
+    <include file="$(find jetauto_example)/scripts/color_detect/color_detect_node.launch">
+        <arg name="use_depth_cam" value="true"/>
+    </include>
+
+    <!-- Нода слежения за конусом -->
+    <node pkg="jetauto_example" type="cone_follow_node.py" name="cone_follow" output="screen"/>
+</launch>
