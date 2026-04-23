@@ -45,11 +45,36 @@ ssh jetauto@192.168.149.1 "echo ok"
 - Кинематика: `jetauto_arm_kinematics`
 - Управление: топик `servo_controllers/port_id_1/multi_id_pos_dur`
 
-### Камера — поворот
-Отдельного серво для поворота камеры **нет**. Камера Astra жёстко закреплена на корпусе.  
-Чтобы изменить направление обзора:
-- **Повернуть робота**: опубликовать `angular.z` в `/jetauto_controller/cmd_vel`
-- **Программный поворот** изображения: `cv2.rotate()` в обработчике топика
+### Камера — поворот (PWM-серво)
+Камера установлена на моторизованном шарнире и управляется двумя **PWM-серво** через GPIO Jetson Nano:
+
+| Серво | GPIO (BCM) | Ось |
+|---|---|---|
+| `PWMServo(1)` | 13 | pan (горизонталь) |
+| `PWMServo(2)` | 12 | tilt (вертикаль) |
+
+Диапазон позиций: `500–2500` мкс, центр = `1500`.
+
+**Быстрый тест (камера качается туда-обратно):**
+```bash
+cd ~/jetauto_ws/src/jetauto_example/scripts/jetauto_adapter_example/pwm_servo/
+python3 two_pwm_servo_demo.py
+```
+
+**Управление из Python:**
+```python
+from jetauto_sdk.pwm_servo import PWMServo
+
+pan  = PWMServo(1)  # горизонталь
+tilt = PWMServo(2)  # вертикаль
+pan.start()
+tilt.start()
+
+pan.set_position(1500)   # центр
+tilt.set_position(1300)  # вниз
+```
+
+SDK: `jetauto_sdk/pwm_servo.py`
 
 ### Голос
 - Офлайн распознавание речи iFlytek (пакет `xf_mic_asr_offline`)
