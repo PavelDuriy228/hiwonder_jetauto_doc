@@ -48,3 +48,17 @@
   - servo=2 → GPIO 12 (tilt)
   - Диапазон 500–2500 мкс, центр 1500
   - Демо: `jetauto_example/scripts/jetauto_adapter_example/pwm_servo/two_pwm_servo_demo.py`
+
+---
+
+## [2026-04-30] v0.1.0 — Реализован MCP сервер и robot_api на роботе
+### Added
+- `.claude/mcp_server.py` — MCP сервер (7 инструментов: robot_move, read_sensors, get_camera_snapshot, run_diagnostic, emergency_stop, update_changelog, deploy_file)
+- `.claude/config.py` — константы подключения (ROBOT, таймауты, пути)
+- `.claude/mcp_config.json` — конфигурация регистрации MCP сервера
+- `robot_api/move.py` — управление моторами через CLI, stub-режим если железо недоступно
+- `robot_api/sensors.py` — ультразвук, IMU, батарея; заглушки с реалистичными данными
+- `robot_api/camera.py` — захват JPEG через OpenCV, placeholder если камера недоступна
+- `robot_api/diagnostic.py` — CPU, RAM, диск, температура, батарея через psutil
+- `robot_api/changelog.py` — запись в ~/CHANGELOG.md на роботе
+- `scripts/setup_robot.sh` — автоматический деплой robot_api на робота

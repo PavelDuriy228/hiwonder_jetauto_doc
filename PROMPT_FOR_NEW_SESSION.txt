@@ -1,0 +1,115 @@
+Реализуй dataset_recorder.py для робота Hiwonder JetAuto.
+Файл живёт на роботе: ~/jetauto_tesla/recorder/dataset_recorder.py
+
+## Контекст проекта
+- Робот: Ubuntu, ssh jetauto@192.168.149.1
+- Камера: Orbbec Astra Pro Plus, доступна через OpenCV (cv2.VideoCapture)
+- Моторы: управляются через ~/jetauto_tesla/robot_api/move.py
+- Цель файла: во время ручного управления синхронно писать
+  кадр камеры + команды моторов → датасет для обучения нейросети
+
+## Что нужно реализовать
+
+### Класс DatasetRecorder
+
+```python
+class DatasetRecorder:
+    def __init__(self, session_dir: str, resolution: tuple = (160, 120), fps: int = 10)
+    def start(self) -> None          # начать запись
+    def stop(self) -> SessionMeta    # остановить, вернуть метаданные сессии
+    def record_frame(self, frame: np.ndarray, speed_left: float, speed_right: float) -> None
+    def get_stats(self) -> dict      # кадров записано, размер на диске, fps фактический
+```
+
+### Структура сессии на диске
+data/raw/session_YYYYMMDD_HHMMSS/
+├── frames/
+│   ├── 000000.jpg    # кадры 160×120, качество JPEG 85
+│   ├── 000001.jpg
+│   └── ...
+├── controls.csv      # timestamp_ns, frame_id, speed_left, speed_right, ultrasonic_cm
+├── meta.json         # resolution, fps, total_frames, duration_sec, robot_id="jetauto"
+└── dataset.h5        # HDF5: всё в одном файле (создаётся командой finalize)
+
+### controls.csv — формат строки
+timestamp_ns,frame_id,speed_left,speed_right,ultrasonic_cm
+1714500000000000000,000000,0.35,-0.35,87.4
+- timestamp_ns: time.time_ns() в момент захвата кадра
+- speed_left/right: float -1.0..1.0 (нормализованная скорость)
+- ultrasonic_cm: float, -1.0 если сенсор недоступен
+
+### HDF5 структура (команда finalize)
+dataset.h5
+├── frames     shape=(N, 120, 160, 3) dtype=uint8
+├── speed_left  shape=(N,) dtype=float32
+├── speed_right shape=(N,) dtype=float32
+├── timestamp_ns shape=(N,) dtype=int64
+└── ultrasonic_cm shape=(N,) dtype=float32
+
+### CLI интерфейс (запуск напрямую)
+
+```bash
+# Запись новой сессии (keyboard control — WASD)
+python3 dataset_recorder.py record --fps 10 --resolution 160x120
+
+# Финализация: конвертировать папку сессии в HDF5
+python3 dataset_recorder.py finalize --session data/raw/session_20250430_143022
+
+# Статистика по всем сессиям
+python3 dataset_recorder.py stats
+
+# Предпросмотр последней сессии (воспроизвести кадры + команды)
+python3 dataset_recorder.py preview --session data/raw/session_20250430_143022
+```
+
+### Режим record: управление с клавиатуры (WASD)
+
+Использовать `keyboard` или `pynput` для неблокирующего чтения клавиш:
+W → speed_left=0.4,  speed_right=0.4   (вперёд)
+S → speed_left=-0.4, speed_right=-0.4  (назад)
+A → speed_left=-0.3, speed_right=0.3   (влево)
+D → speed_left=0.3,  speed_right=-0.3  (вправо)
+Q → плавный стоп (speed снижается за 0.3 сек)
+E → аварийный стоп (немедленно)
+P → пауза/продолжить запись
+I → вывести stats в терминал
+ESC → остановить запись, финализировать
+
+Комбинации: W+A, W+D (плавные диагонали со смешением коэффициентов).
+
+### Требования к синхронизации
+
+- Кадр и команда пишутся атомарно в одном вызове record_frame()
+- Если камера не успела дать кадр — пропустить итерацию (не дублировать)
+- Запись в CSV происходит в отдельном потоке (queue-based), чтобы не блокировать цикл захвата
+- Фактический fps логировать каждые 5 секунд в терминал
+
+### Обработка ошибок
+
+- Камера недоступна → предупреждение + заглушка (серый кадр 160×120) + продолжить запись
+- Диск заполнен (< 100 MB свободно) → автоматически остановить запись, вызвать stop()
+- Прерывание Ctrl+C → перехватить, вызвать stop() корректно, не терять последние кадры
+
+### Зависимости
+
+Установить на роботе:
+```bash
+pip3 install opencv-python-headless h5py pynput --break-system-packages
+```
+
+## Стиль кода
+- Dataclass SessionMeta с полями: session_dir, total_frames, duration_sec, fps_actual, size_mb
+- Логирование через logging (не print), уровень INFO по умолчанию
+- Константы в верхней части файла: BASE_SPEED=0.4, MIN_FREE_DISK_MB=100, JPEG_QUALITY=85
+
+## После реализации
+1. Загрузи файл на робота через scp:
+   scp recorder/dataset_recorder.py jetauto@192.168.149.1:~/jetauto_tesla/recorder/
+2. Установи зависимости на роботе
+3. Запусти тестовую запись на 10 секунд:
+   ssh jetauto@192.168.149.1 "cd ~/jetauto_tesla && python3 recorder/dataset_recorder.py record --fps 10"
+4. Проверь что controls.csv не пустой и кадры записались
+5. Запусти finalize и проверь dataset.h5:
+   ssh jetauto@192.168.149.1 "python3 recorder/dataset_recorder.py finalize --session data/raw/<последняя_сессия>"
+6. Запиши в CHANGELOG.md:
+   версия v0.2.0, секция Added, сообщение "Реализован dataset_recorder.py — синхронная запись кадров и команд моторов, WASD управление, CSV + HDF5 экспорт"

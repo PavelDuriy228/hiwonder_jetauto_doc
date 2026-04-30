@@ -1,0 +1,7 @@
+ROBOT = "jetauto@192.168.149.1"
+ROBOT_API_DIR = "~/jetauto_tesla/robot_api"
+SSH_TIMEOUT = 10
+EMERGENCY_TIMEOUT = 3
+LOG_FILE = ".claude/mcp.log"
+LOCAL_CHANGELOG = "CHANGELOG.md"
+REMOTE_CHANGELOG = "~/CHANGELOG.md"

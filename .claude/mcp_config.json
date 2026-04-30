@@ -1,0 +1,9 @@
+{
+  "mcpServers": {
+    "jetauto": {
+      "command": "python3",
+      "args": [".claude/mcp_server.py"],
+      "description": "JetAuto robot control"
+    }
+  }
+}

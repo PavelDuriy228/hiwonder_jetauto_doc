@@ -8,8 +8,16 @@ import rospy
 import numpy as np
 import jetauto_sdk.pid as pid
 import jetauto_sdk.fps as fps
+import jetauto_sdk.pwm_servo as pwm_servo_mod
 from sensor_msgs.msg import Image
 from geometry_msgs.msg import Twist
+
+PAN_CENTER  = 1500
+TILT_CENTER = 1500
+PAN_MIN,  PAN_MAX  = 800, 2200
+TILT_MIN, TILT_MAX = 800, 2200
+PAN_SIGN  = 1   # set to -1 if pan direction is reversed
+TILT_SIGN = 1   # set to -1 if tilt direction is reversed
 
 class KCFNode:
     def __init__(self, name):
@@ -18,9 +26,18 @@ class KCFNode:
         self.pid_d = pid.PID(0.8, 0, 0)
         #self.pid_d = pid.PID(0, 0, 0)
 
-        self.pid_angular = pid.PID(0.002, 0, 0)
-        self.go_speed, self.turn_speed = 0.007, 0.04
-        self.linear_x, self.angular = 0, 0
+        self.pid_pan  = pid.PID(0.5, 0, 0)
+        self.pid_tilt = pid.PID(0.5, 0, 0)
+        self.go_speed = 0.007
+        self.linear_x = 0
+        self.pan_pos  = PAN_CENTER
+        self.tilt_pos = TILT_CENTER
+        self.pan_servo  = pwm_servo_mod.PWMServo(1)
+        self.tilt_servo = pwm_servo_mod.PWMServo(2)
+        self.pan_servo.start()
+        self.tilt_servo.start()
+        self.pan_servo.set_position(self.pan_pos,  500)
+        self.tilt_servo.set_position(self.tilt_pos, 500)
 
         self.fps = fps.FPS()
         
@@ -64,6 +81,8 @@ class KCFNode:
         key = cv2.waitKey(1)
         if key != -1:
             self.mecanum_pub.publish(Twist())
+            self.pan_servo.set_position(PAN_CENTER,  500)
+            self.tilt_servo.set_position(TILT_CENTER, 500)
             rospy.signal_shutdown('shutdown')
      
     #鼠标点击事件回调函数
@@ -169,19 +188,23 @@ class KCFNode:
                         self.linear_x = 0
                     twist.linear.x = self.linear_x
                     
-                    self.pid_angular.SetPoint = w/2
-                    if abs(center[0] - w/2) < 10:
-                        center[0] = w/2
-                    self.pid_angular.update(center[0])  #更新pid
-                    tmp = self.turn_speed + self.pid_angular.output
-                    self.angular = tmp
-                    if tmp > 0.4:
-                        self.angular = 0.4
-                    if tmp < -0.4:
-                        self.angular = -0.4
-                    if abs(tmp) < 0.05:
-                        self.angular = 0
-                    twist.angular.z = self.angular
+                    # Pan — горизонтальное слежение камерой
+                    self.pid_pan.SetPoint = w / 2
+                    if abs(center[0] - w / 2) < 10:
+                        center[0] = w / 2
+                    self.pid_pan.update(center[0])
+                    self.pan_pos = int(self.pan_pos + PAN_SIGN * self.pid_pan.output)
+                    self.pan_pos = max(PAN_MIN, min(PAN_MAX, self.pan_pos))
+                    self.pan_servo.set_position(self.pan_pos, 20)
+
+                    # Tilt — вертикальное слежение камерой
+                    self.pid_tilt.SetPoint = h / 2
+                    if abs(center[1] - h / 2) < 10:
+                        center[1] = h / 2
+                    self.pid_tilt.update(center[1])
+                    self.tilt_pos = int(self.tilt_pos - TILT_SIGN * self.pid_tilt.output)
+                    self.tilt_pos = max(TILT_MIN, min(TILT_MAX, self.tilt_pos))
+                    self.tilt_servo.set_position(self.tilt_pos, 20)
                 else:
                     cv2.putText(image, "Tracking failure detected !", (10, 460), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 0), 1)
             else:
@@ -199,6 +222,8 @@ def main():
         rospy.spin()
     except Exception as e:
         kcf_node.mecanum_pub.publish(Twist())
+        kcf_node.pan_servo.set_position(PAN_CENTER,  500)
+        kcf_node.tilt_servo.set_position(TILT_CENTER, 500)
         rospy.logerr(str(e))
 
 if __name__ == '__main__':
