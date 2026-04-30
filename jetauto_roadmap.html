@@ -1,0 +1,130 @@
+
+<style>
+.phase { cursor:pointer; transition: opacity .15s; }
+.phase:hover { opacity: .85; }
+.prompt-btn {
+  display:inline-block; margin:4px 4px 0 0; padding:4px 10px;
+  border-radius:6px; font-size:12px; cursor:pointer;
+  background:var(--color-background-secondary);
+  color:var(--color-text-secondary);
+  border:1px solid var(--color-border-secondary);
+  transition: background .15s, color .15s;
+  font-family: var(--font-sans);
+}
+.prompt-btn:hover { background:var(--color-background-primary); color:var(--color-text-primary); }
+.tag {
+  display:inline-block; padding:2px 8px; border-radius:4px; font-size:11px; font-weight:500;
+  margin-right:4px;
+}
+.tag-now  { background:#E1F5EE; color:#085041; }
+.tag-ml   { background:#EEEDFE; color:#3C3489; }
+.tag-data { background:#FAEEDA; color:#633806; }
+.tag-e2e  { background:#FAECE7; color:#712B13; }
+.card {
+  border:1px solid var(--color-border-tertiary);
+  border-radius:var(--border-radius-lg);
+  padding:16px 20px;
+  margin-bottom:12px;
+  background:var(--color-background-secondary);
+}
+.card-title { font-size:15px; font-weight:500; color:var(--color-text-primary); margin-bottom:4px; }
+.card-sub   { font-size:12px; color:var(--color-text-secondary); margin-bottom:10px; }
+.file-list  { font-size:12px; color:var(--color-text-tertiary); font-family:var(--font-mono); line-height:1.8; }
+.divider    { border:none; border-top:1px solid var(--color-border-tertiary); margin:6px 0 10px; }
+</style>
+
+<h2 class="sr-only">Дорожная карта JetAuto — от PID до нейросетевого автопилота</h2>
+
+<div class="card phase" onclick="sendPrompt('Напиши промпт для Claude Code для фазы 1 — PID автопилот JetAuto')">
+  <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
+    <span class="tag tag-now">Фаза 1 — сейчас</span>
+    <span style="font-size:12px;color:var(--color-text-tertiary)">1–2 недели</span>
+  </div>
+  <div class="card-title">PID автопилот + сбор данных</div>
+  <div class="card-sub">Классический подход. Робот едет. Одновременно пишет датасет для нейросети.</div>
+  <hr class="divider">
+  <div class="file-list">
+    autopilot/pid_controller.py &nbsp;·&nbsp; perception/lane_detector.py<br>
+    autopilot/state_machine.py &nbsp;·&nbsp; <strong>recorder/dataset_recorder.py</strong>
+  </div>
+  <div style="margin-top:10px">
+    <span class="prompt-btn" onclick="event.stopPropagation();sendPrompt('Напиши промпт для Claude Code: реализовать dataset_recorder.py — записывать кадр камеры + команды моторов в CSV/HDF5 синхронно во время ручного управления JetAuto')">промпт: recorder</span>
+    <span class="prompt-btn" onclick="event.stopPropagation();sendPrompt('Напиши промпт для Claude Code: реализовать lane_detector.py с OpenCV Hough Lines для JetAuto, возвращать centre_offset в пикселях')">промпт: lane detector</span>
+    <span class="prompt-btn" onclick="event.stopPropagation();sendPrompt('Напиши промпт для Claude Code: реализовать pid_controller.py с настраиваемыми Kp Ki Kd, логировать ошибку и управляющий сигнал')">промпт: PID</span>
+  </div>
+</div>
+
+<div class="card phase" onclick="sendPrompt('Напиши промпт для Claude Code для фазы 2 — сбор датасета JetAuto')">
+  <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
+    <span class="tag tag-data">Фаза 2 — данные</span>
+    <span style="font-size:12px;color:var(--color-text-tertiary)">2–4 недели езды</span>
+  </div>
+  <div class="card-title">Накопить датасет вождения</div>
+  <div class="card-sub">Ты управляешь вручную, робот пишет: кадр + скорость L/R колёс. Цель — 2–5 часов разных трасс.</div>
+  <hr class="divider">
+  <div class="file-list">
+    data/raw/session_YYYYMMDD_HHMMSS/<br>
+    &nbsp;&nbsp;frames/ &nbsp;·&nbsp; controls.csv &nbsp;·&nbsp; meta.json<br>
+    data/processed/train.h5 &nbsp;·&nbsp; val.h5
+  </div>
+  <div style="margin-top:10px">
+    <span class="prompt-btn" onclick="event.stopPropagation();sendPrompt('Напиши промпт для Claude Code: скрипт data_pipeline.py — читать сырые сессии, синхронизировать кадры с controls.csv, экспортировать HDF5 датасет с аугментацией (flip, brightness)')">промпт: data pipeline</span>
+    <span class="prompt-btn" onclick="event.stopPropagation();sendPrompt('Напиши промпт для Claude Code: скрипт visualize_dataset.py — показать случайные кадры с наложенными командами для проверки качества датасета')">промпт: visualize</span>
+  </div>
+</div>
+
+<div class="card phase" onclick="sendPrompt('Напиши промпт для Claude Code для фазы 3 — обучение нейросети behavioural cloning JetAuto')">
+  <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
+    <span class="tag tag-ml">Фаза 3 — ML</span>
+    <span style="font-size:12px;color:var(--color-text-tertiary)">на ПК / Colab</span>
+  </div>
+  <div class="card-title">Обучение — Behavioural Cloning</div>
+  <div class="card-sub">CNN смотрит на кадр, предсказывает скорость L/R колёс. Обучается подражать твоему вождению.</div>
+  <hr class="divider">
+  <div class="file-list">
+    ml/model.py &nbsp;·&nbsp; ml/train.py &nbsp;·&nbsp; ml/evaluate.py<br>
+    ml/export_onnx.py &nbsp;·&nbsp; models/pilot_v1.onnx
+  </div>
+  <div style="margin-top:10px">
+    <span class="prompt-btn" onclick="event.stopPropagation();sendPrompt('Напиши промпт для Claude Code: реализовать CNN модель в PyTorch — вход 160x120 RGB, выход (speed_left, speed_right), архитектура MobileNetV2 backbone + regression head')">промпт: model.py</span>
+    <span class="prompt-btn" onclick="event.stopPropagation();sendPrompt('Напиши промпт для Claude Code: train.py — обучение с early stopping, логирование loss в tensorboard, сохранение лучшей модели')">промпт: train.py</span>
+    <span class="prompt-btn" onclick="event.stopPropagation();sendPrompt('Напиши промпт для Claude Code: export_onnx.py — экспортировать PyTorch модель в ONNX, проверить корректность на тестовом кадре')">промпт: ONNX export</span>
+  </div>
+</div>
+
+<div class="card phase" onclick="sendPrompt('Напиши промпт для Claude Code для фазы 4 — деплой нейросети на JetAuto')">
+  <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
+    <span class="tag tag-e2e">Фаза 4 — деплой</span>
+    <span style="font-size:12px;color:var(--color-text-tertiary)">на роботе</span>
+  </div>
+  <div class="card-title">Neural autopilot на роботе</div>
+  <div class="card-sub">ONNX Runtime запускает модель прямо на JetAuto. Камера → нейросеть → моторы. PID остаётся как fallback.</div>
+  <hr class="divider">
+  <div class="file-list">
+    autopilot/neural_pilot.py &nbsp;·&nbsp; autopilot/hybrid_pilot.py<br>
+    autopilot/safety_watchdog.py
+  </div>
+  <div style="margin-top:10px">
+    <span class="prompt-btn" onclick="event.stopPropagation();sendPrompt('Напиши промпт для Claude Code: neural_pilot.py — загружать ONNX модель через onnxruntime, в цикле 30Hz захватывать кадр, предсказывать скорости, отправлять в моторы')">промпт: neural_pilot</span>
+    <span class="prompt-btn" onclick="event.stopPropagation();sendPrompt('Напиши промпт для Claude Code: hybrid_pilot.py — если нейросеть даёт уверенный прогноз, использовать её; если нет — переключаться на PID. Confidence по дисперсии выходов.')">промпт: hybrid</span>
+    <span class="prompt-btn" onclick="event.stopPropagation();sendPrompt('Напиши промпт для Claude Code: safety_watchdog.py — отдельный поток, если ультразвук < 15 см — немедленный стоп независимо от нейросети')">промпт: watchdog</span>
+  </div>
+</div>
+
+<div class="card phase" onclick="sendPrompt('Напиши промпт для Claude Code для фазы 5 — итеративное улучшение модели JetAuto как openpilot')">
+  <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
+    <span class="tag tag-ml">Фаза 5 — итерации</span>
+    <span style="font-size:12px;color:var(--color-text-tertiary)">непрерывно</span>
+  </div>
+  <div class="card-title">Flywheel — как openpilot</div>
+  <div class="card-sub">Нейросеть едет → записывает сессии → ты корректируешь плохие моменты → дообучаешь → деплоишь. Цикл.</div>
+  <hr class="divider">
+  <div class="file-list">
+    tools/session_reviewer.py &nbsp;·&nbsp; tools/intervention_tagger.py<br>
+    ml/finetune.py &nbsp;·&nbsp; CHANGELOG.md ← автообновление
+  </div>
+  <div style="margin-top:10px">
+    <span class="prompt-btn" onclick="event.stopPropagation();sendPrompt('Напиши промпт для Claude Code: session_reviewer.py — веб-интерфейс на Flask, показывать записанные сессии, отмечать плохие моменты (intervention), экспортировать для дообучения')">промпт: reviewer</span>
+    <span class="prompt-btn" onclick="event.stopPropagation();sendPrompt('Напиши промпт для Claude Code: автоматически обновлять CHANGELOG.md после каждого деплоя новой версии модели через MCP инструмент update_changelog')">промпт: auto-changelog</span>
+  </div>
+</div>
