@@ -9,12 +9,12 @@
 
 ## Подключение
 ```bash
-ssh jetauto@192.168.149.1   # ключ настроен, пароль не нужен
+ssh jetauto@192.168.3.100   # ключ настроен, пароль не нужен
 ```
 
 Быстрая проверка:
 ```bash
-ssh jetauto@192.168.149.1 "echo ok && python3 --version"
+ssh jetauto@192.168.3.100 "echo ok && python3 --version"
 ```
 
 ---
@@ -35,21 +35,21 @@ ssh jetauto@192.168.149.1 "echo ok && python3 --version"
 
 ### Проверка и диагностика
 ```bash
-ssh jetauto@192.168.149.1 "ls ~/jetauto_tesla/"
-ssh jetauto@192.168.149.1 "python3 ~/jetauto_tesla/status.py"
-ssh jetauto@192.168.149.1 "vcgencmd measure_temp"      # температура
-ssh jetauto@192.168.149.1 "free -h && df -h"           # память/диск
+ssh jetauto@192.168.3.100 "ls ~/jetauto_tesla/"
+ssh jetauto@192.168.3.100 "python3 ~/jetauto_tesla/status.py"
+ssh jetauto@192.168.3.100 "vcgencmd measure_temp"      # температура
+ssh jetauto@192.168.3.100 "free -h && df -h"           # память/диск
 ```
 
 ### Запуск модулей
 ```bash
-ssh jetauto@192.168.149.1 "python3 ~/jetauto_tesla/autopilot.py"
-ssh jetauto@192.168.149.1 "python3 ~/jetauto_tesla/camera.py --preview"
+ssh jetauto@192.168.3.100 "python3 ~/jetauto_tesla/autopilot.py"
+ssh jetauto@192.168.3.100 "python3 ~/jetauto_tesla/camera.py --preview"
 ```
 
 ### Остановка (ВСЕГДА перед отключением!)
 ```bash
-ssh jetauto@192.168.149.1 "python3 ~/jetauto_tesla/move.py --stop"
+ssh jetauto@192.168.3.100 "python3 ~/jetauto_tesla/move.py --stop"
 ```
 
 ---
@@ -88,7 +88,7 @@ ssh jetauto@192.168.149.1 "python3 ~/jetauto_tesla/move.py --stop"
 Claude Code должен обновлять CHANGELOG.md после каждой сессии разработки.
 Команда для записи (пример):
 ```bash
-ssh jetauto@192.168.149.1 "echo '## [$(date +%Y-%m-%d)] — ...' >> ~/CHANGELOG.md"
+ssh jetauto@192.168.3.100 "echo '## [$(date +%Y-%m-%d)] — ...' >> ~/CHANGELOG.md"
 ```
 
 ---

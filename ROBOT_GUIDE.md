@@ -4,13 +4,13 @@
 
 ```bash
 # SSH
-ssh jetauto@192.168.149.1
+ssh jetauto@192.168.3.100
 
 # Проверка связи
-ssh jetauto@192.168.149.1 "echo ok"
+ssh jetauto@192.168.3.100 "echo ok"
 ```
 
-Для GUI-приложений (OpenCV окна, RViz) — **NoMachine** на `192.168.149.1:4000`.
+Для GUI-приложений (OpenCV окна, RViz) — **NoMachine** на `192.168.3.100:4000`.
 
 ---
 

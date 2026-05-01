@@ -26,28 +26,28 @@
 | Камера | Orbbec Astra Pro Plus — RGB + глубина |
 | Микрофон | Линейка iFlyTek — голосовое управление |
 | ОС | Ubuntu 18.04 + ROS Melodic |
-| Wi-Fi | Точка доступа `HW_JetAuto_...`, IP: `192.168.149.1` |
+| Wi-Fi | Сеть `s21-robo` (скрытая), статический IP: `192.168.3.100` |
 
 ---
 
 ## Подключение к роботу
 
-### Шаг 1 — Подключись к Wi-Fi робота
+### Шаг 1 — Подключись к Wi-Fi `s21-robo`
 - Включи робота, подожди 20–30 секунд
-- Найди сеть `HW_JetAuto_...` или `JetAuto_...`
-- **Пароль Wi-Fi:** `12345678`
+- Подключись к сети `s21-robo` (сеть скрытая — вводи SSID вручную)
+- **Пароль Wi-Fi:** `pieghei7eat4ee`
 
 ### Шаг 2 — Подключись по SSH
 ```bash
-ssh jetauto@192.168.149.1
+ssh jetauto@192.168.3.100
 ```
 - **Пароль:** `jetauto` (символы при вводе не отображаются — это нормально)
 - Если спросит `yes/no` — введи `yes`
 
 ### Шаг 3 — Подключись через NoMachine (для графики)
 - Скачай NoMachine: [nomachine.com](https://www.nomachine.com)
-- Подключись к Wi-Fi робота
-- Введи IP: `192.168.149.1`
+- Подключись к сети `s21-robo`
+- Введи IP: `192.168.3.100`
 - **Пароль:** `hiwonder`
 
 > **Правило:** SSH — для всех текстовых команд. NoMachine — только для RViz и графических приложений.
@@ -256,8 +256,8 @@ rosrun map_server map_saver map:=/map -f /home/jetauto/my_map
 
 ### Скопировать карту на свой ПК
 ```bash
-scp jetauto@192.168.149.1:/home/jetauto/my_map.pgm ./
-scp jetauto@192.168.149.1:/home/jetauto/my_map.yaml ./
+scp jetauto@192.168.3.100:/home/jetauto/my_map.pgm ./
+scp jetauto@192.168.3.100:/home/jetauto/my_map.yaml ./
 ```
 
 ---
@@ -318,7 +318,7 @@ rosrun map_server map_saver map:=/map -f /home/jetauto/my_map
 ### Подключение
 | Действие | Команда |
 |----------|---------|
-| SSH подключение | `ssh jetauto@192.168.149.1` |
+| SSH подключение | `ssh jetauto@192.168.3.100` |
 | Настройка окружения | `source ~/.bashrc` |
 
 ### Запуск модулей
@@ -345,7 +345,7 @@ rosrun map_server map_saver map:=/map -f /home/jetauto/my_map
 | Действие | Команда |
 |----------|---------|
 | Сохранить карту | `rosrun map_server map_saver map:=/map -f /home/jetauto/my_map` |
-| Скопировать карту на ПК | `scp jetauto@192.168.149.1:/home/jetauto/my_map.pgm ./` |
+| Скопировать карту на ПК | `scp jetauto@192.168.3.100:/home/jetauto/my_map.pgm ./` |
 
 ### Устранение неполадок
 | Действие | Команда |
@@ -362,7 +362,7 @@ rosrun map_server map_saver map:=/map -f /home/jetauto/my_map
 
 ```
 1. Включить робота → подождать 20 сек
-2. Подключиться к Wi-Fi HW_JetAuto_...
+2. Убедиться что ПК подключён к Wi-Fi `s21-robo`
 3. SSH: robot_start          (ждать 10 сек, LiDAR начнёт крутиться)
 4. SSH: robot_slam            (запустить картографию)
 5. NoMachine: robot_rviz      (открыть визуализацию)
@@ -374,4 +374,4 @@ rosrun map_server map_saver map:=/map -f /home/jetauto/my_map
 
 ---
 
-*Робот: Hiwonder JetAuto | ОС: Ubuntu 18.04 | ROS: Melodic | IP: 192.168.149.1*
+*Робот: Hiwonder JetAuto | ОС: Ubuntu 18.04 | ROS: Melodic | IP: 192.168.3.100*

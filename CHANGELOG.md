@@ -62,3 +62,14 @@
 - `robot_api/diagnostic.py` — CPU, RAM, диск, температура, батарея через psutil
 - `robot_api/changelog.py` — запись в ~/CHANGELOG.md на роботе
 - `scripts/setup_robot.sh` — автоматический деплой robot_api на робота
+
+---
+
+## [2026-05-01] v0.2.0 — Улучшенные контроллеры + телеоп WASD
+### Added
+- `teleop.py` — единый финальный телеоп (заменяет my_teleop.py и teleop_key_control.py): WASD+QE движение, IJK0 камера, FirstOrderFilter с раздельными RC для разгона и торможения
+- `PIDController` (inline) — PID с anti-windup и D-членом, вместо P-only из jetauto_sdk
+- `FirstOrderFilter` (inline) — LP-фильтр на скорости, убирает рывки
+### Changed
+- `cone_follow_node.py` — добавлен поворот корпуса через angular.z (раньше следила только камера), скорость пропорциональна расстоянию до конуса, state machine LOST/TRACKING/NEAR
+- `object_tracking.py` — дистанционный PID с anti-windup и I/D членами, фильтр на linear.x, freeze_integrator в мёртвой зоне ±10 см
