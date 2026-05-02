@@ -130,7 +130,7 @@ bash scripts/setup_robot.sh
 
 | Фича | Статус | Файл |
 |------|--------|------|
-| Базовое движение (WASD) | ☐ | move.py |
+| Базовое движение (WASD) | ✓ | move.py |
 | Чтение сенсоров | ☐ | sensors.py |
 | Стрим с камеры | ☐ | camera.py |
 | Детекция полосы (lane keeping) | ☐ | autopilot.py |

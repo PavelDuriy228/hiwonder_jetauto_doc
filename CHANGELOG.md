@@ -65,6 +65,39 @@
 
 ---
 
+## [2026-05-02] v0.3.1 — move.py доработан; recorder интегрирован с set_velocity
+### Fixed
+- `robot_api/move.py`:
+  - `move()` теперь возвращает `speed_left`, `speed_right`, `vx`, `vy` в dict
+  - Добавлен параметр `turn: float = 0.0` для диагонального движения
+  - Добавлен параметр `blocking: bool = False` — CLI вызывает с `blocking=True`, recorder с `False`
+  - Добавлена `set_velocity(speed_left, speed_right)` — прямое управление колёсами для recorder
+  - Добавлена `stop_motors()` — безусловная остановка
+  - `_get_chassis()` кеширует экземпляр Board, избегая повторного reset-to-zero
+  - Добавлена константа `WHEEL_BASE = 0.15`
+- `recorder/dataset_recorder.py`:
+  - Импортирует `set_velocity` / `stop_motors` из `robot_api.move` (stub при недоступности)
+  - WASD-маппинг использует точные значения: W+A→(0.12, 0.4), W+D→(0.4, 0.12)
+  - `record_frame()` получает `speed_left`/`speed_right` из ответа `set_velocity()`
+  - KEY_HOLD_SEC=0.15 — таймаут удержания клавиши для детекции диагоналей
+  - `stop_motors()` в finally блоке обоих режимов
+
+---
+
+## [2026-05-02] v0.3.0 — Dataset Recorder (openpilot-стиль сбор данных)
+### Added
+- `recorder/dataset_recorder.py` — синхронная запись кадров и команд моторов для обучения автопилота
+  - `DatasetRecorder` класс: start/stop/record_frame/get_stats, queue-based CSV запись в отдельном потоке
+  - Структура сессии: `data/raw/session_YYYYMMDD_HHMMSS/` с frames/, controls.csv, meta.json, dataset.h5
+  - CLI: `record` (WASD + headless `--duration N`), `finalize` (→HDF5), `stats`, `preview`
+  - HDF5 структура: frames (N,120,160,3), speed_left/right, timestamp_ns, ultrasonic_cm
+  - Заглушки: серый кадр при недоступной камере, stub-режим при отсутствии платы
+  - Защита диска: автостоп при <100 MB свободного места; SIGTERM/Ctrl-C без потери данных
+  - Совместимость с Python 3.6 (Jetson Nano Ubuntu 18.04)
+- Протестировано: 99 кадров, 10.0 fps, controls.csv ✓, dataset.h5 ✓
+
+---
+
 ## [2026-05-01] v0.2.0 — Улучшенные контроллеры + телеоп WASD
 ### Added
 - `teleop.py` — единый финальный телеоп (заменяет my_teleop.py и teleop_key_control.py): WASD+QE движение, IJK0 камера, FirstOrderFilter с раздельными RC для разгона и торможения

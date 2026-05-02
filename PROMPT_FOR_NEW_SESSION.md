@@ -2,7 +2,7 @@
 Файл живёт на роботе: ~/jetauto_tesla/recorder/dataset_recorder.py
 
 ## Контекст проекта
-- Робот: Ubuntu, ssh jetauto@192.168.149.1
+- Робот: Ubuntu, ssh jetauto@192.168.3.100
 - Камера: Orbbec Astra Pro Plus, доступна через OpenCV (cv2.VideoCapture)
 - Моторы: управляются через ~/jetauto_tesla/robot_api/move.py
 - Цель файла: во время ручного управления синхронно писать
@@ -104,12 +104,12 @@ pip3 install opencv-python-headless h5py pynput --break-system-packages
 
 ## После реализации
 1. Загрузи файл на робота через scp:
-   scp recorder/dataset_recorder.py jetauto@192.168.149.1:~/jetauto_tesla/recorder/
+   scp recorder/dataset_recorder.py jetauto@192.168.3.100:~/jetauto_tesla/recorder/
 2. Установи зависимости на роботе
 3. Запусти тестовую запись на 10 секунд:
-   ssh jetauto@192.168.149.1 "cd ~/jetauto_tesla && python3 recorder/dataset_recorder.py record --fps 10"
+   ssh jetauto@192.168.3.100 "cd ~/jetauto_tesla && python3 recorder/dataset_recorder.py record --fps 10"
 4. Проверь что controls.csv не пустой и кадры записались
 5. Запусти finalize и проверь dataset.h5:
-   ssh jetauto@192.168.149.1 "python3 recorder/dataset_recorder.py finalize --session data/raw/<последняя_сессия>"
+   ssh jetauto@192.168.3.100 "python3 recorder/dataset_recorder.py finalize --session data/raw/<последняя_сессия>"
 6. Запиши в CHANGELOG.md:
    версия v0.2.0, секция Added, сообщение "Реализован dataset_recorder.py — синхронная запись кадров и команд моторов, WASD управление, CSV + HDF5 экспорт"
