@@ -1,5 +1,18 @@
 # Журнал изменений
 
+## [2026-05-02] v0.3.2 — Исправлена камера: мультибэкенд (ROS + OpenNI2)
+### Исправлено
+- `recorder/dataset_recorder.py` — камера больше не захардкожена на `cv2.VideoCapture(0)` (нет `/dev/video*` нод)
+- `recorder/camera.py` (новый) — `open_camera()` пробует бэкенды по очереди:
+  1. **ROS** `/camera/rgb/image_raw` — работает если запущен `roslaunch jetauto_peripherals astrapro.launch`
+  2. **OpenNI2** через подпроцесс — изолирован от сегфолта через subprocess pipe
+  3. `None` → серые заглушки с сообщением как запустить камеру
+- `recorder/openni2_worker.py` (новый) — подпроцесс-воркер: OpenNI2 → JPEG → stdout (4-байт длина + данные)
+### Добавлено
+- При недоступной камере выводится подсказка: `roslaunch jetauto_peripherals astrapro.launch`
+
+---
+
 ## 2026-04-23
 
 ### Создано

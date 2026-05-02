@@ -43,6 +43,15 @@ logging.basicConfig(
     datefmt="%H:%M:%S",
 )
 logger = logging.getLogger("dataset_recorder")
+logger.setLevel(logging.INFO)
+if not logger.handlers:
+    _handler = logging.StreamHandler()
+    _handler.setFormatter(logging.Formatter(
+        "%(asctime)s [%(levelname)s] %(message)s",
+        datefmt="%H:%M:%S",
+    ))
+    logger.addHandler(_handler)
+logger.propagate = False
 
 
 # ── Motor API (robot_api.move) ────────────────────────────────────────────────
@@ -62,6 +71,13 @@ except Exception:
     set_velocity = _stub_set_velocity  # type: ignore
     stop_motors = _stub_stop           # type: ignore
     logger.debug("robot_api.move not found — using stubs")
+
+
+# ── Camera (optional) ─────────────────────────────────────────────────────────
+try:
+    from camera import open_camera as _open_camera  # type: ignore
+except ImportError:
+    _open_camera = None  # type: ignore
 
 
 # ── Keyboard helper (works in SSH via termios raw mode) ───────────────────────
@@ -315,6 +331,96 @@ def _key_to_speeds(fwd_key, turn_key):
     return 0.0, 0.0
 
 
+# ── KeyController — 50 Hz keyboard thread ─────────────────────────────────────
+KEY_POLL_HZ = 50  # motor response < 20 ms
+
+class KeyController(threading.Thread):
+    """Polls keyboard at KEY_POLL_HZ and drives motors immediately on each keypress.
+
+    The recording loop reads current_sl / current_sr at its own (slower) rate.
+    """
+
+    def __init__(self, stop_flag, recorder_ref):
+        # type: (threading.Event, DatasetRecorder) -> None
+        super(KeyController, self).__init__(daemon=True)
+        self.stop_flag = stop_flag
+        self._recorder = recorder_ref
+        self._lock = threading.Lock()
+        self._sl = 0.0
+        self._sr = 0.0
+
+    def get_speeds(self):
+        # type: () -> Tuple[float, float]
+        with self._lock:
+            return self._sl, self._sr
+
+    def run(self):
+        # type: () -> None
+        fwd_key = None   # type: Optional[str]
+        turn_key = None  # type: Optional[str]
+        fwd_time = 0.0
+        turn_time = 0.0
+        poll_interval = 1.0 / KEY_POLL_HZ
+
+        try:
+            with RawKeyboard() as kb:
+                while not self.stop_flag.is_set():
+                    t0 = time.time()
+                    key = kb.read(timeout=0.0)
+                    now = time.time()
+
+                    if key:
+                        k = key.lower()
+                        if k in ("w", "s"):
+                            fwd_key = k
+                            fwd_time = now
+                        elif k in ("a", "d"):
+                            turn_key = k
+                            turn_time = now
+                        elif k == "q":
+                            sl, sr = _key_to_speeds(fwd_key, turn_key)
+                            for _ in range(6):
+                                sl *= 0.5
+                                sr *= 0.5
+                                set_velocity(sl, sr)
+                                time.sleep(0.05)
+                            fwd_key = turn_key = None
+                            stop_motors()
+                        elif k == "e":
+                            fwd_key = turn_key = None
+                            stop_motors()
+                            logger.info("EMERGENCY STOP")
+                        elif k == "p":
+                            self._recorder.toggle_pause()
+                        elif k == "i":
+                            logger.info("Stats: %s", self._recorder.get_stats())
+                        elif key in ("\x1b", "\x03"):  # ESC or Ctrl-C
+                            self.stop_flag.set()
+                            break
+
+                    # Expire key state if no new event within KEY_HOLD_SEC
+                    if now - fwd_time > KEY_HOLD_SEC:
+                        fwd_key = None
+                    if now - turn_time > KEY_HOLD_SEC:
+                        turn_key = None
+
+                    sl, sr = _key_to_speeds(fwd_key, turn_key)
+                    vel = set_velocity(sl, sr)
+
+                    with self._lock:
+                        self._sl = vel["speed_left"]
+                        self._sr = vel["speed_right"]
+
+                    elapsed = time.time() - t0
+                    sleep = poll_interval - elapsed
+                    if sleep > 0:
+                        time.sleep(sleep)
+
+        except Exception as exc:
+            logger.error("KeyController error: %s", exc)
+            self.stop_flag.set()
+
+
 # ── record command ────────────────────────────────────────────────────────────
 def cmd_record(fps, resolution, duration=None):
     # type: (int, Tuple[int, int], Optional[float]) -> None
@@ -322,17 +428,18 @@ def cmd_record(fps, resolution, duration=None):
 
     If duration is set (or stdin is not a TTY), runs headlessly for N seconds.
     """
-    import cv2
-
     # Warn once about motor stub mode
     _probe = set_velocity(0.0, 0.0)
     if _probe.get("stub"):
         logger.warning("Motors stubbed — no hardware detected")
 
-    cap = cv2.VideoCapture(0)
-    if not cap.isOpened():
-        logger.warning("Camera not found — using grey stub frames")
-        cap = None
+    cap = _open_camera(resolution) if _open_camera is not None else None
+    if cap is None:
+        logger.warning(
+            "Camera unavailable — grey stub frames will be recorded.\n"
+            "  To enable the camera, start ROS first:\n"
+            "    roslaunch jetauto_peripherals astrapro.launch"
+        )
 
     session_dir = _new_session_dir()
     recorder = DatasetRecorder(str(session_dir), resolution=resolution, fps=fps)
@@ -357,8 +464,8 @@ def cmd_record(fps, resolution, duration=None):
             while time.time() < deadline and not stop_flag.is_set():
                 t0 = time.time()
                 if cap is not None:
-                    ret, frame = cap.read()
-                    if not ret:
+                    frame = cap.read()
+                    if frame is None:
                         frame = _gray_frame(resolution)
                 else:
                     frame = _gray_frame(resolution)
@@ -379,86 +486,44 @@ def cmd_record(fps, resolution, duration=None):
             cmd_finalize(meta.session_dir)
         return
 
-    # ── Interactive keyboard mode ─────────────────────────────────────────────
+    # ── Interactive keyboard mode (50 Hz key thread + 10 fps recording) ─────────
     print(
         "\nW/S -- forward/back   A/D -- left/right   W+A/W+D -- diagonal\n"
         "Q -- smooth stop      E -- emergency stop\n"
         "P -- pause/resume     I -- stats\n"
         "ESC or Ctrl-C -- stop & finalize\n"
+        "Motor response: <20 ms (keys run at {}Hz)\n".format(KEY_POLL_HZ)
     )
     sys.stdout.flush()
 
-    # Key state: track active forward (w/s) and turn (a/d) keys with timestamps
-    fwd_key = None   # type: Optional[str]
-    turn_key = None  # type: Optional[str]
-    fwd_time = 0.0
-    turn_time = 0.0
+    key_ctrl = KeyController(stop_flag, recorder)
+    key_ctrl.start()
 
     try:
-        with RawKeyboard() as kb:
-            while not stop_flag.is_set():
-                t0 = time.time()
+        while not stop_flag.is_set():
+            t0 = time.time()
 
-                key = kb.read(timeout=0.0)
-                now = time.time()
-
-                if key:
-                    k = key.lower()
-                    if k in ("w", "s"):
-                        fwd_key = k
-                        fwd_time = now
-                    elif k in ("a", "d"):
-                        turn_key = k
-                        turn_time = now
-                    elif k == "q":
-                        # Smooth stop — ramp down in 0.3 s
-                        sl, sr = _key_to_speeds(fwd_key, turn_key)
-                        for _ in range(6):
-                            sl *= 0.5
-                            sr *= 0.5
-                            set_velocity(sl, sr)
-                            time.sleep(0.05)
-                        fwd_key = turn_key = None
-                        stop_motors()
-                    elif k == "e":
-                        fwd_key = turn_key = None
-                        stop_motors()
-                        logger.info("EMERGENCY STOP")
-                    elif k == "p":
-                        recorder.toggle_pause()
-                    elif k == "i":
-                        logger.info("Stats: %s", recorder.get_stats())
-                    elif key in ("\x1b", "\x03"):  # ESC or Ctrl-C
-                        stop_flag.set()
-                        break
-
-                # Expire key state after KEY_HOLD_SEC with no new event
-                if now - fwd_time > KEY_HOLD_SEC:
-                    fwd_key = None
-                if now - turn_time > KEY_HOLD_SEC:
-                    turn_key = None
-
-                sl, sr = _key_to_speeds(fwd_key, turn_key)
-                vel = set_velocity(sl, sr)
-
-                if cap is not None:
-                    ret, frame = cap.read()
-                    if not ret:
-                        frame = _gray_frame(resolution)
-                else:
+            if cap is not None:
+                frame = cap.read()
+                if frame is None:
                     frame = _gray_frame(resolution)
+            else:
+                frame = _gray_frame(resolution)
 
-                # Use clamped values returned by set_velocity
-                recorder.record_frame(frame, vel["speed_left"], vel["speed_right"])
+            # Read speeds set by key thread (already sent to motors)
+            sl, sr = key_ctrl.get_speeds()
+            recorder.record_frame(frame, sl, sr)
 
-                sleep_time = interval - (time.time() - t0)
-                if sleep_time > 0:
-                    time.sleep(sleep_time)
+            sleep_time = interval - (time.time() - t0)
+            if sleep_time > 0:
+                time.sleep(sleep_time)
 
     except KeyboardInterrupt:
         logger.info("Ctrl+C — stopping")
+        stop_flag.set()
     finally:
         stop_motors()
+        key_ctrl.join(timeout=1.0)
         if cap is not None:
             cap.release()
         meta = recorder.stop()

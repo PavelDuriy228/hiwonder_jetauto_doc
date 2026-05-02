@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Motor control for JetAuto. Callable as a standalone CLI script.
+"""Motor control for JetAuto using jetauto_sdk.MecanumChassis.
 
 Usage:
     python3 move.py forward 0.3 1.0
@@ -7,30 +7,51 @@ Usage:
 """
 
 import json
+import math
 import sys
 import time
 import traceback
 
-VALID_DIRECTIONS = {"forward", "back", "left", "right", "stop"}
-WHEEL_BASE = 0.15  # metres between left and right wheels
+# Path to the real SDK inside the ROS workspace
+JETAUTO_SDK_PATH = "/home/jetauto/jetauto_ws/src/jetauto_driver/jetauto_sdk/src"
 
-# Cached chassis instance — avoids re-init (and the safety zero) on every call
+VALID_DIRECTIONS = {"forward", "back", "left", "right", "stop"}
+WHEEL_BASE = 0.15        # metres (a+b = 103+97 = 200 mm — used for normalised math)
+MAX_SPEED_MM_S = 150.0   # mm/s at normalised speed 1.0 (safe for development)
+
+# Cached MecanumChassis instance — created once, reused across calls
 _chassis_cache = None
 
 
 def _get_chassis():
-    """Return the real chassis object, or None if hardware is unavailable."""
+    """Return MecanumChassis instance, or None if hardware is unavailable."""
     global _chassis_cache
     if _chassis_cache is not None:
         return _chassis_cache
     try:
-        from hiwonder.jetauto import Board  # type: ignore
-        board = Board()
-        board.set_car_motion(0, 0, 0)
-        _chassis_cache = board
-        return board
+        if JETAUTO_SDK_PATH not in sys.path:
+            sys.path.insert(0, JETAUTO_SDK_PATH)
+        from jetauto_sdk.mecanum import MecanumChassis  # type: ignore
+        chassis = MecanumChassis()
+        chassis.reset_motors()
+        _chassis_cache = chassis
+        return chassis
     except Exception:
         return None
+
+
+def _wheel_speeds_to_chassis(chassis, speed_left, speed_right):
+    """Send normalised wheel speeds to MecanumChassis.
+
+    Converts differential-drive (speed_left, speed_right) in [-1, 1]
+    to polar (speed_mm_s, direction_rad, angular_rate_rad_s).
+    """
+    avg = (speed_left + speed_right) / 2.0
+    speed_mm_s = abs(avg) * MAX_SPEED_MM_S
+    direction = 0.0 if avg >= 0.0 else math.pi
+    # angular_rate: (a + b) = 200 mm converts mm/s difference to rad/s
+    angular_rate = (speed_right - speed_left) * MAX_SPEED_MM_S / 200.0
+    chassis.set_velocity(speed_mm_s, direction, angular_rate)
 
 
 def move(direction, speed, duration=1.0, turn=0.0, blocking=False):
@@ -40,10 +61,8 @@ def move(direction, speed, duration=1.0, turn=0.0, blocking=False):
     Args:
         direction: One of forward/back/left/right/stop.
         speed:     Normalised speed 0.0–1.0.
-        duration:  Seconds to move (ignored unless blocking=True).
-        turn:      Differential turn offset (-1..1). Positive = turn right.
-                   speed_left  = base_speed - turn
-                   speed_right = base_speed + turn
+        duration:  Seconds to move (only used when blocking=True).
+        turn:      Differential turn offset -1..1. Positive = turn right.
         blocking:  If True, sleep(duration) then stop. CLI uses True.
 
     Returns:
@@ -54,7 +73,6 @@ def move(direction, speed, duration=1.0, turn=0.0, blocking=False):
     speed = max(0.0, min(1.0, float(speed)))
     turn = max(-1.0, min(1.0, float(turn)))
 
-    # Map direction → base (speed_left, speed_right)
     _base = {
         "forward": ( speed,  speed),
         "back":    (-speed, -speed),
@@ -63,27 +81,23 @@ def move(direction, speed, duration=1.0, turn=0.0, blocking=False):
         "stop":    (0.0,    0.0),
     }
     base_sl, base_sr = _base[direction]
-
-    # Apply turn offset
     sl = max(-1.0, min(1.0, base_sl - turn))
     sr = max(-1.0, min(1.0, base_sr + turn))
 
-    # Convert differential wheel speeds → chassis vx / vz
     vx = (sl + sr) / 2.0
     vy = 0.0
-    vz = (sr - sl) / WHEEL_BASE
 
     chassis = _get_chassis()
     stub = chassis is None
 
     try:
         if not stub:
-            chassis.set_car_motion(vx, vy, vz)
+            _wheel_speeds_to_chassis(chassis, sl, sr)
         if blocking and duration > 0:
             time.sleep(duration)
     finally:
         if blocking and not stub and direction != "stop":
-            chassis.set_car_motion(0, 0, 0)
+            chassis.reset_motors()
 
     return {
         "ok": True,
@@ -100,26 +114,22 @@ def move(direction, speed, duration=1.0, turn=0.0, blocking=False):
 
 def set_velocity(speed_left, speed_right):
     # type: (float, float) -> dict
-    """Set wheel velocities directly, without duration. For use by recorder.
+    """Set wheel velocities directly. For use by dataset recorder.
 
     Args:
         speed_left:  Normalised left-wheel speed  -1.0..1.0.
         speed_right: Normalised right-wheel speed -1.0..1.0.
 
     Returns:
-        JSON-compatible dict with speed_left, speed_right, stub flag.
+        dict with speed_left, speed_right, stub flag.
     """
     speed_left  = max(-1.0, min(1.0, float(speed_left)))
     speed_right = max(-1.0, min(1.0, float(speed_right)))
 
-    vx = (speed_left + speed_right) / 2.0
-    vy = 0.0
-    vz = (speed_right - speed_left) / WHEEL_BASE
-
     chassis = _get_chassis()
     stub = chassis is None
     if not stub:
-        chassis.set_car_motion(vx, vy, vz)
+        _wheel_speeds_to_chassis(chassis, speed_left, speed_right)
 
     return {"ok": True, "speed_left": speed_left, "speed_right": speed_right, "stub": stub}
 
@@ -127,7 +137,10 @@ def set_velocity(speed_left, speed_right):
 def stop_motors():
     # type: () -> dict
     """Immediate stop. Always safe to call."""
-    return set_velocity(0.0, 0.0)
+    chassis = _get_chassis()
+    if chassis is not None:
+        chassis.reset_motors()
+    return {"ok": True, "speed_left": 0.0, "speed_right": 0.0, "stub": chassis is None}
 
 
 def main():
